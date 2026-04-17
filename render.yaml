@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: terrascenik
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: MONGODB_URI
+        sync: false
+      - key: SESSION_SECRET
+        generateValue: true
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: UNSPLASH_KEY
+        sync: false

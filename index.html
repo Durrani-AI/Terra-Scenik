@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terra Scenik - Share Your Nature Photos</title>
+    <link rel="stylesheet" href="/Style/style.css">
+</head>
+
+<body>
+    <!-- ============================================ -->
+    <!-- AUTHENTICATION SECTION (Login/Register) -->
+    <!-- ============================================ -->
+    <div id="authSection" class="section active">
+        <div class="auth-container">
+            <!-- Left Side - Brand -->
+            <div class="auth-brand">
+                <h1>Terra Scenik</h1>
+                <p class="tagline">Share your best take on nature with a vibrant and nature-loving community.</p>
+            </div>
+
+            <!-- Right Side - Login Form -->
+            <div class="auth-box" id="loginBox">
+                <h2>Welcome Back</h2>
+
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="loginName">Username</label>
+                        <input type="text" id="loginName" placeholder="Enter your username" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" placeholder="Enter your password" required>
+                    </div>
+
+                    <button type="submit" class="btn-primary">Login</button>
+                    <div id="loginError" class="error-message"></div>
+                </form>
+
+                <p class="switch-text">
+                    Don't have an account?
+                    <a href="#" id="showRegister">Register here</a>
+                </p>
+            </div>
+
+            <!-- Right Side - Register Form -->
+            <div class="auth-box hidden" id="registerBox">
+                <h2>Create Account</h2>
+
+                <form id="registerForm">
+                    <div class="form-group">
+                        <label for="registerName">Full Name</label>
+                        <input type="text" id="registerName" placeholder="Enter your name" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="registerEmail">Email</label>
+                        <input type="email" id="registerEmail" placeholder="Enter your email" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="registerPassword">Password</label>
+                        <input type="password" id="registerPassword" placeholder="Create a password" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="registerBio">Bio (Optional)</label>
+                        <textarea id="registerBio" placeholder="Tell us about yourself..." rows="3"></textarea>
+                    </div>
+
+                    <button type="submit" class="btn-primary">Register</button>
+                    <div id="registerError" class="error-message"></div>
+                </form>
+
+                <p class="switch-text">
+                    Already have an account?
+                    <a href="#" id="showLogin">Login here</a>
+                </p>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- MAIN APP SECTION (After Login) -->
+    <!-- ============================================ -->
+    <div id="appSection" class="section">
+        <!-- Left Sidebar -->
+        <aside class="sidebar">
+            <div class="sidebar-logo-home">
+                <h2>TS</h2>
+            </div>
+            <nav class="sidebar-menu">
+                <a href="#" class="sidebar-item" data-view="feed">
+                    <img src="/Style/icons/feed.svg" alt="Feed" class="sidebar-icon">
+                    <span class="sidebar-text">Feed</span>
+                </a>
+                <a href="#" class="sidebar-item" data-view="search">
+                    <img src="/Style/icons/search.svg" alt="Search" class="sidebar-icon">
+                    <span class="sidebar-text">Search</span>
+                </a>
+                <a href="#" class="sidebar-item" data-view="create">
+                    <img src="/Style/icons/create.svg" alt="Create" class="sidebar-icon">
+                    <span class="sidebar-text">Create</span>
+                </a>
+                <a href="#" class="sidebar-item" data-view="profile">
+                    <img src="/Style/icons/profile.svg" alt="Profile" class="sidebar-icon">
+                    <span class="sidebar-text">Profile</span>
+                </a>
+            </nav>
+        </aside>
+
+        <!-- Top Navigation Bar -->
+        <nav class="navbar">
+            <div class="nav-logo-trigger">
+                <div class="navbar-logo">
+                    <h2>TS</h2>
+                </div>
+            </div>
+            <div class="nav-links">
+                <a href="#" class="nav-link active" data-view="feed">Feed</a>
+                <a href="#" class="nav-link" data-view="create">Create</a>
+            </div>
+            <div class="nav-search">
+                <input type="text" id="navSearchInput" placeholder="Search nature posts, users...">
+                <select id="navSearchType" class="nav-search-dropdown">
+                    <option value="posts">Posts</option>
+                    <option value="users">Users</option>
+                </select>
+                <button id="navSearchBtn" class="nav-search-btn">Search</button>
+            </div>
+            <div class="nav-actions">
+                <div class="nav-profile-pic" id="navProfilePic">
+                    <img id="navProfilePicImg" alt="Profile">
+                    <img src="/Style/icons/profile.svg" alt="Profile" class="nav-profile-icon">
+                </div>
+                <button id="logoutBtn" class="btn-logout">
+                    <img src="/Style/icons/logout.svg" alt="Logout" class="btn-icon">
+                    <span>Log Out</span>
+                </button>
+            </div>
+        </nav>
+
+        <!-- Navbar Search Results Dropdown -->
+        <div id="navSearchResults" class="nav-search-results"></div>
+
+        <!-- Main Content Area -->
+        <div class="main-content">
+            <div class="main-content-inner">
+                <!-- ============================================ -->
+                <!-- FEED VIEW -->
+                <!-- ============================================ -->
+                <div id="feedView" class="view active">
+                    <div class="view-header">
+                        <h2>Your Feed</h2>
+                        <p class="subtitle">Posts from people you follow</p>
+                    </div>
+                    <div id="feedContainer" class="posts-container">
+                        <!-- Posts will be loaded here -->
+                    </div>
+                </div>
+
+                <!-- ============================================ -->
+                <!-- SEARCH VIEW -->
+                <!-- ============================================ -->
+                <div id="searchView" class="view">
+                    <div class="view-header">
+                        <h2>Search</h2>
+                    </div>
+
+                    <div class="search-main">
+                        <div class="search-input-container">
+                            <input type="text" id="mainSearchInput" placeholder="Search for users or posts...">
+                            <select id="mainSearchType" class="search-type-select">
+                                <option value="posts">Posts</option>
+                                <option value="users">Users</option>
+                            </select>
+                        </div>
+                        <div id="searchHistory" class="search-history">
+                            <h3>Recent Searches</h3>
+                            <div id="searchHistoryList"></div>
+                        </div>
+                        <div id="mainSearchResults" class="main-search-results"></div>
+                    </div>
+                </div>
+
+                <!-- ============================================ -->
+                <!-- CREATE POST VIEW -->
+                <!-- ============================================ -->
+                <div id="createView" class="view">
+                    <div class="view-header">
+                        <h2>Create Post</h2>
+                        <p class="subtitle">Share your best take on nature</p>
+                    </div>
+
+                    <div class="create-post-form">
+                        <form id="createPostForm">
+                            <div class="form-group">
+                                <label for="postCaption">Caption</label>
+                                <textarea id="postCaption" placeholder="Describe your nature experience..." rows="4"
+                                    required></textarea>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="postLocation">Location</label>
+                                <div class="input-with-icon">
+                                    <img src="/Style/icons/location.svg" alt="Location" class="input-icon">
+                                    <input type="text" id="postLocation" placeholder="Where did you capture this?"
+                                        required>
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label for="postImage">Photo</label>
+                                <div class="image-source-tabs">
+                                    <button type="button" class="tab-btn active" data-tab="upload">Upload Photo</button>
+                                    <button type="button" class="tab-btn" data-tab="unsplash">Search Photos</button>
+                                </div>
+
+                                <div id="uploadTab" class="image-tab active">
+                                    <input type="file" id="postImage" accept="image/*">
+                                    <small>Upload your nature photo</small>
+                                    <div id="postImagePreview" class="image-preview"></div>
+                                </div>
+
+                                <div id="unsplashTab" class="image-tab">
+                                    <div class="unsplash-search">
+                                        <input type="text" id="unsplashSearchInput"
+                                            placeholder="Search nature photos...">
+                                        <button type="button" id="unsplashSearchBtn" class="btn-search-photos">Search
+                                            Photos</button>
+                                    </div>
+                                    <div id="unsplashResults" class="unsplash-results"></div>
+                                    <div id="unsplashSelectedPreview" class="image-preview"></div>
+                                </div>
+                            </div>
+
+                            <button type="submit" class="btn-primary">Share Post</button>
+                            <div id="createPostError" class="error-message"></div>
+                            <div id="createPostSuccess" class="success-message"></div>
+                        </form>
+                    </div>
+                </div>
+
+                <!-- ============================================ -->
+                <!-- PROFILE VIEW (Current User) -->
+                <!-- ============================================ -->
+                <div id="profileView" class="view">
+                    <div class="view-header">
+                        <h2>Your Profile</h2>
+                        <button id="editProfileBtn" class="btn-primary" style="padding: 10px 24px; width: auto;">Edit
+                            Profile</button>
+                    </div>
+
+                    <div class="profile-info">
+                        <div class="profile-card">
+                            <div class="profile-avatar-container">
+                                <img id="profileAvatar" class="profile-avatar-img" src="" alt="Profile">
+                                <div class="profile-avatar-placeholder"></div>
+                                <button id="uploadProfilePicBtn" class="upload-profile-pic-btn">Upload</button>
+                                <input type="file" id="profilePicInput" accept="image/*" style="display: none;">
+                            </div>
+                            <h3 id="profileName">Loading...</h3>
+                            <p id="profileEmail">Loading...</p>
+                            <p id="profileBio">Loading...</p>
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <h3>My Posts</h3>
+                        <div id="myPostsContainer" class="posts-container">
+                            <!-- User's posts will be loaded here -->
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <h3>People I Follow</h3>
+                        <div id="followingList" class="following-list">
+                            <!-- Following list will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- ============================================ -->
+                <!-- USER PROFILE VIEW (Other Users) -->
+                <!-- ============================================ -->
+                <div id="userProfileView" class="view">
+                    <div class="view-header">
+                        <button id="backFromUserProfile" class="btn-back">← Back</button>
+                        <h2 id="userProfileTitle">User Profile</h2>
+                    </div>
+
+                    <div class="profile-info">
+                        <div class="profile-card">
+                            <div class="profile-avatar-container">
+                                <img id="userProfileAvatar" class="profile-avatar-img" alt="Profile Picture">
+                            </div>
+                            <h3 id="userProfileName">Loading...</h3>
+                            <p id="userProfileEmail">Loading...</p>
+                            <p id="userProfileBio">Loading...</p>
+                            <button id="followUserProfileBtn" class="btn-primary"
+                                style="margin-top: 20px;">Follow</button>
+                        </div>
+                    </div>
+
+                    <div class="profile-section">
+                        <h3>Posts</h3>
+                        <div id="userProfilePosts" class="posts-container">
+                            <!-- User posts will be loaded here -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- EDIT PROFILE MODAL -->
+    <!-- ============================================ -->
+    <div id="editProfileModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Profile</h2>
+                <button id="closeEditProfileModal" class="modal-close">×</button>
+            </div>
+            <form id="editProfileForm">
+                <div class="form-group">
+                    <label for="editProfileName">Name</label>
+                    <input type="text" id="editProfileName" placeholder="Enter your name" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="editProfileEmail">Email</label>
+                    <input type="email" id="editProfileEmail" placeholder="Enter your email" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="editProfileBio">Bio</label>
+                    <textarea id="editProfileBio" placeholder="Tell us about yourself..." rows="4"></textarea>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" id="cancelEditProfile" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                </div>
+                <div id="editProfileError" class="error-message"></div>
+                <div id="editProfileSuccess" class="success-message"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- EDIT POST MODAL -->
+    <!-- ============================================ -->
+    <div id="editPostModal" class="modal-overlay">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Edit Post</h2>
+                <button id="closeEditPostModal" class="modal-close">×</button>
+            </div>
+            <form id="editPostForm">
+                <input type="hidden" id="editPostId">
+
+                <div class="form-group">
+                    <label for="editPostCaption">Caption</label>
+                    <textarea id="editPostCaption" placeholder="What's on your mind?" rows="3" required></textarea>
+                </div>
+
+                <div class="form-group">
+                    <label for="editPostLocation">Location</label>
+                    <div class="input-with-icon">
+                        <img src="/Style/icons/location.svg" alt="Location" class="input-icon">
+                        <input type="text" id="editPostLocation" placeholder="Where was this taken?" required>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <label for="editPostImage">Change Image (optional)</label>
+                    <input type="file" id="editPostImage" accept="image/*">
+                    <div id="editPostImagePreview" class="image-preview"></div>
+                </div>
+
+                <div class="modal-actions">
+                    <button type="button" id="cancelEditPost" class="btn-secondary">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                </div>
+                <div id="editPostError" class="error-message"></div>
+                <div id="editPostSuccess" class="success-message"></div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ============================================ -->
+    <!-- AI CHATBOT WIDGET -->
+    <!-- ============================================ -->
+    <div id="chatbotWidget" class="chatbot-widget">
+        <!-- Floating Chat Button -->
+        <button id="chatbotToggle" class="chatbot-toggle" title="Chat with Terra - Your AI Assistant">
+            <svg class="chatbot-toggle-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                <path d="M12 3C7.03 3 3 6.58 3 11c0 2.52 1.39 4.76 3.55 6.24L5 21l4.5-2.25C10.3 18.91 11.14 19 12 19c4.97 0 9-3.58 9-8s-4.03-8-9-8z"/>
+                <path d="M8 10.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5S8 11.33 8 10.5z" fill="currentColor"/>
+                <path d="M13 10.5c0-.83.67-1.5 1.5-1.5s1.5.67 1.5 1.5-.67 1.5-1.5 1.5-1.5-.67-1.5-1.5z" fill="currentColor"/>
+            </svg>
+            <span class="chatbot-toggle-close">✕</span>
+        </button>
+
+        <!-- Chat Window -->
+        <div id="chatbotWindow" class="chatbot-window">
+            <div class="chatbot-header">
+                <div class="chatbot-header-info">
+                    <svg class="chatbot-avatar-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5">
+                        <path d="M12 2L8 6H4v4l-2 2 2 2v4h4l4 4 4-4h4v-4l2-2-2-2V6h-4L12 2z"/>
+                        <circle cx="12" cy="12" r="3" fill="currentColor"/>
+                    </svg>
+                    <div>
+                        <h4>Terra</h4>
+                        <p>AI Assistant</p>
+                    </div>
+                </div>
+                <button id="chatbotMinimize" class="chatbot-minimize">−</button>
+            </div>
+            
+            <div id="chatbotMessages" class="chatbot-messages">
+                <!-- Welcome message -->
+                <div class="chat-message bot-message">
+                    <div class="message-content">
+                        Hi there! I'm Terra, your AI assistant for this app. I can help you navigate, create posts, find users, and more. What would you like to know?
+                    </div>
+                </div>
+            </div>
+            
+            <div class="chatbot-input-container">
+                <input type="text" id="chatbotInput" class="chatbot-input" 
+                    placeholder="Ask me anything about the app...">
+                <button id="chatbotSend" class="chatbot-send">
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                        <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/JS/app.js"></script>
+</body>
+
+</html>
