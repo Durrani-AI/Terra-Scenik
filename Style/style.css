@@ -493,7 +493,7 @@ body {
     align-items: center;
     background: var(--bg-tertiary);
     border: 1px solid var(--border);
-    border-radius: 24px;
+    border-radius: 999px;
     /* pill shape */
     transition: all 0.3s ease;
 }
@@ -529,6 +529,7 @@ body {
     background: transparent;
     border: none;
     border-left: 1px solid var(--border);
+    border-radius: 999px;
     color: var(--text-secondary);
     font-size: 0.85rem;
     font-weight: 400;
@@ -550,7 +551,7 @@ body {
     font-weight: 500;
     cursor: pointer;
     transition: all 0.3s ease;
-    border-radius: 0 24px 24px 0;
+    border-radius: 999px;
     height: 100%;
     display: flex;
     align-items: center;
