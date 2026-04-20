@@ -2,16 +2,9 @@
   <!-- Dark rounded background -->
   <rect width="64" height="64" rx="14" fill="#1a1a1a"/>
   
-  <!-- Corner crop-frame brackets (golden) -->
-  <!-- Top-left corner -->
-  <path d="M12 22 L12 12 L22 12" fill="none" stroke="#c4944a" stroke-width="2.5" stroke-linecap="square"/>
-  <!-- Top-right corner -->
-  <path d="M42 12 L52 12 L52 22" fill="none" stroke="#c4944a" stroke-width="2.5" stroke-linecap="square"/>
-  <!-- Bottom-left corner -->
-  <path d="M12 42 L12 52 L22 52" fill="none" stroke="#c4944a" stroke-width="2.5" stroke-linecap="square"/>
-  <!-- Bottom-right corner -->
-  <path d="M42 52 L52 52 L52 42" fill="none" stroke="#c4944a" stroke-width="2.5" stroke-linecap="square"/>
+  <!-- Larger mountain peak (right) -->
+  <path d="M10 48 L32 16 L54 48" fill="none" stroke="#c4944a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
   
-  <!-- Mountain "M" shape -->
-  <path d="M18 44 L26 24 L32 34 L38 24 L46 44" fill="none" stroke="#c4944a" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>
+  <!-- Smaller mountain peak (left, overlapping) -->
+  <path d="M6 48 L22 28 L38 48" fill="none" stroke="#c4944a" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/>
 </svg>
