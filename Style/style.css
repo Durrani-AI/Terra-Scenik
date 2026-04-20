@@ -1,3 +1,16 @@
+/* Remove white autofill background for search bar */
+input:-webkit-autofill,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:hover,
+input:-internal-autofill-selected {
+    box-shadow: 0 0 0 1000px var(--bg-tertiary) inset !important;
+    -webkit-box-shadow: 0 0 0 1000px var(--bg-tertiary) inset !important;
+    background-color: var(--bg-tertiary) !important;
+    color: var(--text-primary) !important;
+    border-radius: 999px !important;
+    -webkit-text-fill-color: var(--text-primary) !important;
+    transition: background-color 5000s ease-in-out 0s;
+}
 /* Terra Scenik - Stylesheet (style.css) */
 /* Student ID: M01049109 | CST3340 Coursework 2 */
 
