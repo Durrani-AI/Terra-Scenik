@@ -10,6 +10,8 @@ import path from 'path'; // file path utilities
 import multer from 'multer'; // file upload handling
 import { fileURLToPath } from 'url'; // ES module path helper
 import OpenAI from 'openai'; // OpenAI SDK for AI caption generation
+import rateLimit from 'express-rate-limit'; // rate limiting middleware
+import helmet from 'helmet'; // security HTTP headers
 
 const __filename = fileURLToPath(import.meta.url); // get current file path (ES modules)
 const __dirname = path.dirname(__filename); // get directory path
@@ -22,6 +24,70 @@ dotenv.config({ path: path.join(codeDir, '.env') });
 const app = express(); // create Express app
 const PORT = process.env.PORT || 3000; // server port (use environment variable in production)
 const STUDENTID = "M01049109"; // used in all API endpoints
+const isProduction = process.env.NODE_ENV === 'production'; // detect production environment
+
+// === SECURITY FEATURE 1: INPUT SANITIZATION (XSS PREVENTION) ===
+// Strips HTML tags and dangerous characters from user input
+// Prevents stored XSS attacks where malicious scripts could be injected
+function sanitizeInput(str) {
+    if (typeof str !== 'string') return str;
+    return str
+        .replace(/&/g, '&amp;')    // encode ampersands
+        .replace(/</g, '&lt;')     // encode less-than (prevents <script> injection)
+        .replace(/>/g, '&gt;')     // encode greater-than
+        .replace(/"/g, '&quot;')   // encode double quotes
+        .replace(/'/g, '&#x27;')   // encode single quotes
+        .replace(/\//g, '&#x2F;')  // encode forward slashes
+        .trim();                    // remove leading/trailing whitespace
+}
+
+// Sanitizes all string fields in an object (used for request bodies)
+function sanitizeObject(obj) {
+    const sanitized = {};
+    for (const [key, value] of Object.entries(obj)) {
+        sanitized[key] = typeof value === 'string' ? sanitizeInput(value) : value;
+    }
+    return sanitized;
+}
+
+// === SECURITY FEATURE 3: RATE LIMITING ===
+// Prevents brute-force attacks and API abuse
+
+// General API rate limiter — 100 requests per 15 minutes per IP
+const generalLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,  // 15-minute window
+    max: 100,                   // limit each IP to 100 requests per window
+    message: { success: false, error: 'Too many requests. Please try again later.' },
+    standardHeaders: true,      // return rate limit info in RateLimit-* headers
+    legacyHeaders: false,       // disable X-RateLimit-* headers
+});
+
+// Strict rate limiter for login — 5 attempts per 15 minutes per IP
+const loginLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,  // 15-minute window
+    max: 5,                     // only 5 login attempts per window
+    message: { success: false, error: 'Too many login attempts. Please try again in 15 minutes.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Strict rate limiter for registration — 3 accounts per hour per IP
+const registerLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000,  // 1-hour window
+    max: 3,                     // only 3 registrations per hour
+    message: { success: false, error: 'Too many accounts created. Please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
+
+// Rate limiter for AI endpoints — 20 requests per 15 minutes per IP
+const aiLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,  // 15-minute window
+    max: 20,                    // 20 AI requests per window
+    message: { success: false, error: 'Too many AI requests. Please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+});
 
 // === OPENAI CLIENT SETUP ===
 // Initialize OpenAI client with API key from environment variables
@@ -53,6 +119,21 @@ const upload = multer({
 
 // === MIDDLEWARE ===
 
+// === SECURITY FEATURE 2a: HELMET — Secure HTTP Headers ===
+// Sets various HTTP headers to protect against common attacks
+app.use(helmet({
+    contentSecurityPolicy: false, // disabled to allow inline styles/scripts in SPA
+    crossOriginEmbedderPolicy: false, // allow loading Unsplash images
+}));
+
+// Trust reverse proxy (Render) for accurate IP-based rate limiting
+if (isProduction) {
+    app.set('trust proxy', 1);
+}
+
+// Apply general rate limiter to all routes
+app.use(generalLimiter);
+
 app.use(express.json({ limit: '20mb' })); // parse JSON bodies (20MB limit for base64 images)
 app.use(express.urlencoded({ extended: true, limit: '20mb' })); // parse form data
 app.use(express.static(codeDir)); // serve static files from Code directory (index.html)
@@ -60,15 +141,45 @@ app.use('/Style', express.static(path.join(codeDir, 'Style'))); // serve CSS fil
 app.use('/JS', express.static(path.join(codeDir, 'JS'))); // serve JS files
 app.use(`/${STUDENTID}`, express.static(uploadsDir)); // serve uploaded files from Uploads/M01049109
 
+// === SECURITY FEATURE 2b: SECURE SESSION COOKIES ===
 app.use(session({
     secret: process.env.SESSION_SECRET || 'Terra Scenik-secret-key-2025', // signs session cookie
     resave: false, // don't save unmodified sessions
     saveUninitialized: false, // don't create empty sessions
     cookie: {
         maxAge: 24 * 60 * 60 * 1000, // 24 hour expiry
-        httpOnly: true // prevents client-side JS access
+        httpOnly: true,    // prevents client-side JS from accessing cookie (XSS protection)
+        secure: isProduction, // HTTPS-only cookies in production (prevents cookie theft over HTTP)
+        sameSite: 'lax',   // prevents CSRF — cookie only sent with same-site requests + top-level navigations
     }
 }));
+
+// === SECURITY FEATURE 2c: CSRF PROTECTION ===
+// Validates that state-changing requests (POST/PUT/DELETE) come from our own frontend
+// by checking the Origin/Referer headers match our domain
+app.use((req, res, next) => {
+    // Skip CSRF check for safe HTTP methods (GET, HEAD, OPTIONS)
+    if (['GET', 'HEAD', 'OPTIONS'].includes(req.method)) {
+        return next();
+    }
+
+    // In production, verify the request origin matches our domain
+    if (isProduction) {
+        const origin = req.get('origin') || req.get('referer') || '';
+        const allowedOrigins = [
+            process.env.APP_URL,                    // e.g., https://terra-scenik.onrender.com
+            `http://localhost:${PORT}`,              // local development
+        ].filter(Boolean);
+
+        const isAllowed = allowedOrigins.some(allowed => origin.startsWith(allowed));
+
+        if (!isAllowed && origin) {
+            console.warn(`⛔ CSRF blocked: origin ${origin} not in allowed list`);
+            return res.status(403).json({ success: false, error: 'Request blocked: invalid origin' });
+        }
+    }
+    next();
+});
 
 // Request logging middleware - logs all incoming requests
 app.use((req, res, next) => {
@@ -121,12 +232,14 @@ function requireLogin(req, res, next) {
 }
 
 // POST /M01049109/users - Register new user
-app.post(`/${STUDENTID}/users`, async (req, res) => {
+// Rate limited: 3 registrations per hour per IP
+app.post(`/${STUDENTID}/users`, registerLimiter, async (req, res) => {
     if (!usersCollection) {
         return res.json({ success: false, error: 'Database not connected' });
     }
 
-    const { name, email, password, bio } = req.body;
+    // Sanitize all user inputs to prevent XSS
+    const { name, email, password, bio } = sanitizeObject(req.body);
 
     if (!name || !email || !password) {
         return res.json({ success: false, error: 'Name, email, and password are required' });
@@ -306,12 +419,14 @@ app.get(`/${STUDENTID}/login`, async (req, res) => {
 });
 
 // POST /M01049109/login - Authenticate user and create session
-app.post(`/${STUDENTID}/login`, async (req, res) => {
+// Rate limited: 5 login attempts per 15 minutes per IP
+app.post(`/${STUDENTID}/login`, loginLimiter, async (req, res) => {
     if (!usersCollection) {
         return res.json({ success: false, error: 'Database not connected' });
     }
 
-    const { name, password } = req.body;
+    // Sanitize inputs
+    const { name, password } = sanitizeObject(req.body);
 
     if (!name || !password) {
         return res.json({ success: false, error: 'Username and password are required' });
@@ -382,7 +497,8 @@ app.post(`/${STUDENTID}/contents`, requireLogin, async (req, res) => {
         return res.json({ success: false, error: 'Database not connected' });
     }
 
-    const { caption, location, image_url } = req.body;
+    // Sanitize user-provided text fields to prevent stored XSS
+    const { caption, location, image_url } = sanitizeObject(req.body);
 
     // Validation
     if (!caption || !location) {
@@ -827,7 +943,8 @@ app.put(`/${STUDENTID}/users/profile`, requireLogin, async (req, res) => {
         return res.json({ success: false, error: 'Database not connected' });
     }
 
-    const { name, email, bio } = req.body;
+    // Sanitize profile fields to prevent stored XSS
+    const { name, email, bio } = sanitizeObject(req.body);
 
     // Validation
     if (!name || !email) {
@@ -1042,7 +1159,8 @@ app.put(`/${STUDENTID}/contents/:postId`, requireLogin, async (req, res) => {
     }
 
     const { postId } = req.params;
-    const { caption, location, image_url } = req.body;
+    // Sanitize updated post content
+    const { caption, location, image_url } = sanitizeObject(req.body);
 
     // Validation
     if (!caption || !location) {
@@ -1194,9 +1312,10 @@ app.get(`/${STUDENTID}/contents/my`, requireLogin, async (req, res) => {
 // POST /M01049109/ai/chat - Terra Developer Assistant Chatbot
 // Helps users navigate the app with smart preset responses
 // No external API required - works 100% offline
+// Rate limited: 20 requests per 15 minutes per IP
 // ============================================
 
-app.post(`/${STUDENTID}/ai/chat`, async (req, res) => {
+app.post(`/${STUDENTID}/ai/chat`, aiLimiter, async (req, res) => {
     const { message } = req.body;
 
     // Validate required fields
