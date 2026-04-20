@@ -1215,7 +1215,7 @@ app.post(`/${STUDENTID}/ai/chat`, async (req, res) => {
 
         // Smart keyword-based responses
         if (userMessage.includes('hello') || userMessage.includes('hi') || userMessage.includes('hey')) {
-            reply = "Hey there! 👋 I'm Terra, your friendly guide to Terra Scenik! I can help you with posting, finding friends, navigating the app, and more. What would you like to know? 🌿";
+            reply = "Hey there! 👋 I'm Teri, your friendly guide to Terra Scenik! I can help you with posting, finding friends, navigating the app, and more. What would you like to know? 🌿";
         }
         else if (userMessage.includes('help')) {
             reply = "I'm here to help! 🌿 You can ask me about:\n- How to create posts\n- How to find and follow users\n- How to navigate the app\n- Where to find images\n- Profile settings\n\nWhat would you like to know?";
@@ -1260,11 +1260,11 @@ app.post(`/${STUDENTID}/ai/chat`, async (req, res) => {
             reply = "Writing captions: ✍️\nShare the story behind your photo! Describe the scene, your experience, or the feeling you want to convey. Captions help connect with your audience! 🌿";
         }
         else if (userMessage.includes('thank')) {
-            reply = "You're very welcome! 😊 I'm always here to help you explore Terra Scenik. Happy nature photography! 🌿📸";
+            reply = "You're very welcome! 😊 I'm always here to help you explore Terra Scenik. Happy nature photography! 🌿📸\n- Teri";
         }
         else {
             // Default helpful response
-            reply = "I'm Terra, your Terra Scenik guide! 🌿 I can help you with:\n\n• Creating and sharing posts 📸\n• Finding and following users 👥\n• Navigating the app 🧭\n• Profile settings ⚙️\n• Search features 🔍\n\nWhat would you like to know? Feel free to ask specific questions!";
+            reply = "I'm Teri, your Terra Scenik guide! 🌿 I can help you with:\n\n• Creating and sharing posts 📸\n• Finding and following users 👥\n• Navigating the app 🧭\n• Profile settings ⚙️\n• Search features 🔍\n\nWhat would you like to know? Feel free to ask specific questions!";
         }
 
         console.log(`✅ Chatbot response generated (preset)`);
