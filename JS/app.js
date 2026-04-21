@@ -1713,29 +1713,28 @@ function initProfilePictureUpload() {
             }
 
             try {
-                // Convert to base64
-                const base64Image = await fileToBase64(file);
+                // Upload file to server using FormData (not base64)
+                const formData = new FormData();
+                formData.append('profilePicture', file);
 
-                // Update profile picture on server
                 const response = await fetch(`${API_BASE}/users/profile-picture`, {
                     method: 'PUT',
-                    headers: { 'Content-Type': 'application/json' },
                     credentials: 'include',
-                    body: JSON.stringify({ profilePicture: base64Image })
+                    body: formData
                 });
 
                 const data = await response.json();
 
                 if (data.success) {
-                    // Update the image display
+                    // Update the image display with returned URL
                     if (profileAvatarImg) {
-                        profileAvatarImg.src = base64Image;
+                        profileAvatarImg.src = data.profilePicture;
                         profileAvatarImg.classList.add('show');
                     }
 
                     // Update current user data
                     if (currentUser) {
-                        currentUser.profilePicture = base64Image;
+                        currentUser.profilePicture = data.profilePicture;
                     }
 
                     // Update navbar profile picture
@@ -1968,22 +1967,37 @@ editPostForm.addEventListener('submit', async (e) => {
     try {
         let image_url = currentEditingPostImage;
 
-        // Convert new image to base64 if provided
+        // Upload new image to server filesystem if provided (not base64)
         if (imageFile) {
-            console.log('Converting new image to base64...');
-            try {
-                image_url = await fileToBase64(imageFile);
-                console.log('Image converted successfully, length:', image_url.length);
-            } catch (err) {
-                console.error('Failed to convert image:', err);
-                showNotification('error', 'Error', 'Failed to process image. Please try again.');
+            if (imageFile.size > 15 * 1024 * 1024) {
+                showNotification('error', 'File Too Large', 'Please select an image smaller than 15MB');
                 return;
             }
-        } else {
-            console.log('No new image selected, keeping existing:', currentEditingPostImage ? 'Yes' : 'No');
+            try {
+                const formData = new FormData();
+                formData.append('image', imageFile);
+
+                const uploadResponse = await fetch(`${API_BASE}/upload`, {
+                    method: 'POST',
+                    credentials: 'include',
+                    body: formData
+                });
+
+                const uploadData = await uploadResponse.json();
+
+                if (uploadData.success) {
+                    image_url = uploadData.path;
+                } else {
+                    showNotification('error', 'Error', uploadData.error || 'Failed to upload image');
+                    return;
+                }
+            } catch (err) {
+                console.error('Failed to upload image:', err);
+                showNotification('error', 'Error', 'Failed to upload image. Please try again.');
+                return;
+            }
         }
 
-        console.log('Updating post:', currentEditingPostId);
         const response = await fetch(`${API_BASE}/contents/${currentEditingPostId}`, {
             method: 'PUT',
             headers: { 'Content-Type': 'application/json' },

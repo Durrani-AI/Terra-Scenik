@@ -9,7 +9,7 @@ import fs from 'fs'; // file system operations
 import path from 'path'; // file path utilities
 import multer from 'multer'; // file upload handling
 import { fileURLToPath } from 'url'; // ES module path helper
-import OpenAI from 'openai'; // OpenAI SDK for AI caption generation
+import bcrypt from 'bcrypt'; // password hashing (SECURITY)
 import rateLimit from 'express-rate-limit'; // rate limiting middleware
 import helmet from 'helmet'; // security HTTP headers
 
@@ -39,6 +39,12 @@ function sanitizeInput(str) {
         .replace(/'/g, '&#x27;')   // encode single quotes
         .replace(/\//g, '&#x2F;')  // encode forward slashes
         .trim();                    // remove leading/trailing whitespace
+}
+
+// === SECURITY: REGEX ESCAPE (prevents ReDoS attacks) ===
+// Escapes special regex characters in user search queries
+function escapeRegex(str) {
+    return str.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 // Sanitizes all string fields in an object (used for request bodies)
@@ -89,11 +95,8 @@ const aiLimiter = rateLimit({
     legacyHeaders: false,
 });
 
-// === OPENAI CLIENT SETUP ===
-// Initialize OpenAI client with API key from environment variables
-const openai = new OpenAI({
-    apiKey: process.env.OPENAI_API_KEY
-});
+// === PASSWORD HASHING CONFIGURATION ===
+const BCRYPT_SALT_ROUNDS = 12; // cost factor for bcrypt hashing
 
 // === FILE UPLOAD CONFIGURATION ===
 
@@ -114,7 +117,17 @@ const storage = multer.diskStorage({
 
 const upload = multer({
     storage: storage,
-    limits: { fileSize: 15 * 1024 * 1024 } // 15MB max file size
+    limits: { fileSize: 15 * 1024 * 1024 }, // 15MB max file size
+    fileFilter: (req, file, cb) => {
+        // === SECURITY: FILE TYPE VALIDATION ===
+        // Only allow image file types to prevent malicious file uploads
+        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+        if (allowedTypes.includes(file.mimetype)) {
+            cb(null, true);
+        } else {
+            cb(new Error('Only image files (JPEG, PNG, GIF, WebP) are allowed'));
+        }
+    }
 });
 
 // === MIDDLEWARE ===
@@ -122,7 +135,18 @@ const upload = multer({
 // === SECURITY FEATURE 2a: HELMET — Secure HTTP Headers ===
 // Sets various HTTP headers to protect against common attacks
 app.use(helmet({
-    contentSecurityPolicy: false, // disabled to allow inline styles/scripts in SPA
+    contentSecurityPolicy: {
+        directives: {
+            defaultSrc: ["'self'"],
+            scriptSrc: ["'self'"],
+            styleSrc: ["'self'", "'unsafe-inline'"],
+            imgSrc: ["'self'", "https://images.unsplash.com", "data:", "blob:"],
+            connectSrc: ["'self'"],
+            fontSrc: ["'self'"],
+            objectSrc: ["'none'"],
+            frameSrc: ["'none'"],
+        }
+    },
     crossOriginEmbedderPolicy: false, // allow loading Unsplash images
 }));
 
@@ -142,8 +166,12 @@ app.use('/JS', express.static(path.join(codeDir, 'JS'))); // serve JS files
 app.use(`/${STUDENTID}`, express.static(uploadsDir)); // serve uploaded files from Uploads/M01049109
 
 // === SECURITY FEATURE 2b: SECURE SESSION COOKIES ===
+if (!process.env.SESSION_SECRET) {
+    console.error('❌ SESSION_SECRET environment variable is required');
+    process.exit(1);
+}
 app.use(session({
-    secret: process.env.SESSION_SECRET || 'Terra Scenik-secret-key-2025', // signs session cookie
+    secret: process.env.SESSION_SECRET, // signs session cookie — no fallback for security
     resave: false, // don't save unmodified sessions
     saveUninitialized: false, // don't create empty sessions
     cookie: {
@@ -189,9 +217,15 @@ app.use((req, res, next) => {
 
 // === MONGODB SETUP ===
 
-const MONGODB_URI = process.env.MONGODB_URI || 'mongodb+srv://kahmeddurrani_db_user:Itsmypassword%401@kad.ssma5p1.mongodb.net/travelconnect?retryWrites=true&w=majority';
+// SECURITY: No hardcoded credentials — require env var
+const MONGODB_URI = process.env.MONGODB_URI;
+if (!MONGODB_URI) {
+    console.error('❌ MONGODB_URI environment variable is required');
+    process.exit(1);
+}
 
 let db; // database instance
+let client; // MongoDB client (kept for graceful shutdown)
 let usersCollection; // users collection
 let postsCollection; // posts collection
 let followsCollection; // follow relationships
@@ -200,9 +234,8 @@ let likesCollection; // likes on posts
 // connects to MongoDB Atlas and initializes collections
 async function connectDB() {
     try {
-        const client = new MongoClient(MONGODB_URI, {
+        client = new MongoClient(MONGODB_URI, {
             tls: true, // enable SSL encryption
-            tlsAllowInvalidCertificates: true,
             serverSelectionTimeoutMS: 5000 // 5 second timeout
         });
         await client.connect();
@@ -211,9 +244,42 @@ async function connectDB() {
         postsCollection = db.collection('posts');
         followsCollection = db.collection('follows');
         likesCollection = db.collection('likes');
-        console.log('✅ Connected to MongoDB');
+
+        // === DEDUP: Clean duplicate follows before creating unique index ===
+        const dupFollows = await followsCollection.aggregate([
+            { $group: { _id: { followerId: '$followerId', followingId: '$followingId' }, ids: { $push: '$_id' }, count: { $sum: 1 } } },
+            { $match: { count: { $gt: 1 } } }
+        ]).toArray();
+        for (const dup of dupFollows) {
+            const idsToRemove = dup.ids.slice(1); // keep first, remove rest
+            await followsCollection.deleteMany({ _id: { $in: idsToRemove } });
+        }
+
+        // === DEDUP: Clean duplicate likes before creating unique index ===
+        const dupLikes = await likesCollection.aggregate([
+            { $group: { _id: { userId: '$userId', postId: '$postId' }, ids: { $push: '$_id' }, count: { $sum: 1 } } },
+            { $match: { count: { $gt: 1 } } }
+        ]).toArray();
+        for (const dup of dupLikes) {
+            const idsToRemove = dup.ids.slice(1);
+            await likesCollection.deleteMany({ _id: { $in: idsToRemove } });
+        }
+
+        // === DATABASE INDEXES for query performance ===
+        await usersCollection.createIndex({ email: 1 }, { unique: true });
+        await usersCollection.createIndex({ name: 1 });
+        await postsCollection.createIndex({ userId: 1, createdAt: -1 });
+        await postsCollection.createIndex({ userEmail: 1 });
+        await followsCollection.createIndex({ followerId: 1 });
+        await followsCollection.createIndex({ followingId: 1 });
+        await followsCollection.createIndex({ followerId: 1, followingId: 1 }, { unique: true });
+        await likesCollection.createIndex({ postId: 1 });
+        await likesCollection.createIndex({ userId: 1, postId: 1 }, { unique: true });
+
+        console.log('✅ Connected to MongoDB (indexes ensured)');
     } catch (err) {
         console.error('❌ Failed to connect to MongoDB:', err.message);
+        process.exit(1);
     }
 }
 
@@ -245,16 +311,24 @@ app.post(`/${STUDENTID}/users`, registerLimiter, async (req, res) => {
         return res.json({ success: false, error: 'Name, email, and password are required' });
     }
 
+    // === SECURITY: PASSWORD STRENGTH VALIDATION ===
+    if (password.length < 8) {
+        return res.status(400).json({ success: false, error: 'Password must be at least 8 characters long' });
+    }
+
     try {
         const existing = await usersCollection.findOne({ email: email }); // check for duplicate
         if (existing) {
             return res.json({ success: false, error: 'Email already registered' });
         }
 
+        // === SECURITY: HASH PASSWORD WITH BCRYPT ===
+        const hashedPassword = await bcrypt.hash(password, BCRYPT_SALT_ROUNDS);
+
         const newUser = {
             name: name,
             email: email,
-            password: password, // NOTE: should hash in production
+            password: hashedPassword, // stored as bcrypt hash — never plaintext
             bio: bio || '',
             createdAt: new Date()
         };
@@ -278,12 +352,9 @@ app.post(`/${STUDENTID}/users`, registerLimiter, async (req, res) => {
         });
 
     } catch (err) {
-        // Log error details for debugging
         console.error('Register error:', err);
-        // Return generic error to client
         return res.status(500).json({ success: false, error: 'Server error' });
     }
-    // Api route to fetch images from Unsplash      
 });
 
 // POST /M01049109/upload - Upload image file
@@ -346,11 +417,13 @@ app.get(`/${STUDENTID}/users`, async (req, res) => {
     }
 
     try {
+        // SECURITY: Escape regex special characters to prevent ReDoS
+        const safeQuery = escapeRegex(searchQuery);
         // Search users whose name or email contains the search term
         const results = await usersCollection.find({
             $or: [
-                { name: { $regex: searchQuery, $options: 'i' } },
-                { email: { $regex: searchQuery, $options: 'i' } }
+                { name: { $regex: safeQuery, $options: 'i' } },
+                { email: { $regex: safeQuery, $options: 'i' } }
             ]
         }).toArray();
 
@@ -440,8 +513,9 @@ app.post(`/${STUDENTID}/login`, loginLimiter, async (req, res) => {
             return res.status(401).json({ success: false, error: 'Invalid username or password' });
         }
 
-        // Check password
-        if (user.password !== password) {
+        // === SECURITY: COMPARE PASSWORD HASH WITH BCRYPT ===
+        const passwordMatch = await bcrypt.compare(password, user.password);
+        if (!passwordMatch) {
             return res.status(401).json({ success: false, error: 'Invalid username or password' });
         }
 
@@ -553,11 +627,13 @@ app.get(`/${STUDENTID}/contents`, async (req, res) => {
     }
 
     try {
+        // SECURITY: Escape regex special characters to prevent ReDoS
+        const safeQuery = escapeRegex(searchQuery);
         // Search posts by caption or location
         const results = await postsCollection.find({
             $or: [
-                { caption: { $regex: searchQuery, $options: 'i' } },
-                { location: { $regex: searchQuery, $options: 'i' } }
+                { caption: { $regex: safeQuery, $options: 'i' } },
+                { location: { $regex: safeQuery, $options: 'i' } }
             ]
         }).sort({ createdAt: -1 }).toArray();
 
@@ -600,7 +676,8 @@ app.post(`/${STUDENTID}/follow`, requireLogin, async (req, res) => {
         return res.json({ success: false, error: 'Database not connected' });
     }
 
-    const { userEmail } = req.body;
+    // Sanitize input to prevent XSS
+    const { userEmail } = sanitizeObject(req.body);
 
     if (!userEmail) {
         return res.status(400).json({
@@ -671,7 +748,8 @@ app.delete(`/${STUDENTID}/follow`, requireLogin, async (req, res) => {
         return res.json({ success: false, error: 'Database not connected' });
     }
 
-    const { userEmail } = req.body;
+    // Sanitize input to prevent XSS
+    const { userEmail } = sanitizeObject(req.body);
 
     if (!userEmail) {
         return res.status(400).json({
@@ -1041,28 +1119,30 @@ app.put(`/${STUDENTID}/users/profile`, requireLogin, async (req, res) => {
     }
 });
 
-// PUT /M01049109/users/profile-picture - Update profile picture
-app.put(`/${STUDENTID}/users/profile-picture`, requireLogin, async (req, res) => {
+// PUT /M01049109/users/profile-picture - Update profile picture (file upload)
+// SECURITY: Uses multer file upload instead of base64 to prevent DB bloat and DoS
+app.put(`/${STUDENTID}/users/profile-picture`, requireLogin, upload.single('profilePicture'), async (req, res) => {
     if (!usersCollection) {
         return res.json({ success: false, error: 'Database not connected' });
     }
 
-    const { profilePicture } = req.body;
-
-    if (!profilePicture) {
+    if (!req.file) {
         return res.status(400).json({
             success: false,
-            error: 'Profile picture is required'
+            error: 'Profile picture file is required'
         });
     }
 
     try {
-        // Update user's profile picture
+        // Store file path URL instead of base64 data
+        const profilePictureUrl = `/${STUDENTID}/${req.file.filename}`;
+
+        // Update user's profile picture URL in database
         const result = await usersCollection.updateOne(
             { _id: new ObjectId(req.session.userId) },
             {
                 $set: {
-                    profilePicture: profilePicture
+                    profilePicture: profilePictureUrl
                 }
             }
         );
@@ -1077,7 +1157,7 @@ app.put(`/${STUDENTID}/users/profile-picture`, requireLogin, async (req, res) =>
         return res.json({
             success: true,
             message: 'Profile picture updated successfully',
-            profilePicture: profilePicture
+            profilePicture: profilePictureUrl
         });
 
     } catch (err) {
@@ -1315,7 +1395,7 @@ app.get(`/${STUDENTID}/contents/my`, requireLogin, async (req, res) => {
 // Rate limited: 20 requests per 15 minutes per IP
 // ============================================
 
-app.post(`/${STUDENTID}/ai/chat`, aiLimiter, async (req, res) => {
+app.post(`/${STUDENTID}/ai/chat`, requireLogin, aiLimiter, async (req, res) => {
     const { message } = req.body;
 
     // Validate required fields
@@ -1445,3 +1525,17 @@ connectDB().then(() => {
     console.error('Failed to start server:', err);
     process.exit(1);
 });
+
+// === GRACEFUL SHUTDOWN ===
+// Properly close database connections when server stops
+async function gracefulShutdown(signal) {
+    console.log(`\n${signal} received. Shutting down gracefully...`);
+    if (client) {
+        await client.close();
+        console.log('MongoDB connection closed.');
+    }
+    process.exit(0);
+}
+
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));

@@ -15,3 +15,7 @@ services:
         sync: false
       - key: UNSPLASH_KEY
         sync: false
+    disk:
+      name: uploads
+      mountPath: ./Uploads
+      sizeGB: 1
