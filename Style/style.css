@@ -105,7 +105,80 @@ body {
 
 #authSection.active {
     display: flex;
+    flex-direction: column;
     /* show when active */
+}
+
+/* Sleep Mode Disclaimer Banner */
+.sleep-disclaimer {
+    position: fixed;
+    bottom: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 1000;
+    max-width: 600px;
+    width: 90%;
+    animation: slideUpFade 0.5s ease-out;
+}
+
+.sleep-disclaimer.hidden {
+    display: none;
+}
+
+.sleep-disclaimer-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    background: rgba(30, 30, 50, 0.95);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 14px 18px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.4);
+}
+
+.sleep-disclaimer-content .sleep-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+}
+
+.sleep-disclaimer-content p {
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.4;
+    margin: 0;
+}
+
+.sleep-disclaimer-content p strong {
+    color: var(--text-primary);
+}
+
+.sleep-dismiss-btn {
+    flex-shrink: 0;
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 8px;
+    padding: 6px 14px;
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.2s;
+}
+
+.sleep-dismiss-btn:hover {
+    background: var(--primary);
+}
+
+@keyframes slideUpFade {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(20px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
 }
 
 .auth-container {

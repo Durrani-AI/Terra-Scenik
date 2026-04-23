@@ -7,6 +7,23 @@ let currentUser = null; // stores logged-in user data (id, name, email, bio, pro
 
 // === UTILITY FUNCTIONS ===
 
+// Sleep disclaimer dismiss handler — only shows once per session
+(function() {
+    const disclaimer = document.getElementById('sleepDisclaimer');
+    const dismissBtn = document.getElementById('dismissDisclaimer');
+    
+    if (sessionStorage.getItem('sleepDismissed')) {
+        if (disclaimer) disclaimer.classList.add('hidden');
+    }
+    
+    if (dismissBtn) {
+        dismissBtn.addEventListener('click', () => {
+            disclaimer.classList.add('hidden');
+            sessionStorage.setItem('sleepDismissed', 'true');
+        });
+    }
+})();
+
 // displays error message in element, auto-hides after 5 seconds
 function showError(elementId, message) {
     const el = document.getElementById(elementId);
