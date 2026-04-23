@@ -219,6 +219,11 @@ function showAppSection() {
     
     // Show chatbot when logged in
     showChatbot();
+    
+    // Refresh search history for the logged-in user
+    if (typeof displaySearchHistory === 'function') {
+        displaySearchHistory();
+    }
 }
 
 /**
@@ -262,6 +267,9 @@ function switchView(viewName) {
     document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
     // Show the selected view by adding 'active' class
     document.getElementById(`${viewName}View`).classList.add('active');
+
+    // Save current view to sessionStorage so it persists on page refresh
+    sessionStorage.setItem('currentView', viewName);
 
     // Update nav links
     document.querySelectorAll('.nav-link').forEach(link => {
@@ -308,6 +316,28 @@ document.getElementById('showLogin').addEventListener('click', (e) => {
     document.getElementById('loginBox').classList.remove('hidden');
 });
 
+// Password Visibility Toggle
+document.querySelectorAll('.show-password-btn').forEach(btn => {
+    btn.addEventListener('click', (e) => {
+        const targetId = e.target.dataset.target;
+        const passwordInput = document.getElementById(targetId);
+        
+        if (passwordInput) {
+            // Show password
+            passwordInput.type = 'text';
+            e.target.textContent = 'Hide';
+            
+            // Hide after 800ms (less than 1 second)
+            setTimeout(() => {
+                if (passwordInput) {
+                    passwordInput.type = 'password';
+                    e.target.textContent = 'Show';
+                }
+            }, 800);
+        }
+    });
+});
+
 // ============================================
 // REGISTRATION
 // ============================================
@@ -340,7 +370,7 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
         if (data.success) {
             currentUser = data.user;
             showAppSection();
-            loadFeed();
+            switchView('feed');
         } else {
             showError('registerError', data.error || 'Registration failed');
         }
@@ -380,7 +410,7 @@ document.getElementById('loginForm').addEventListener('submit', async (e) => {
         if (data.success) {
             currentUser = data.user;
             showAppSection();
-            loadFeed();
+            switchView('feed');
         } else {
             showError('loginError', data.error || 'Login failed');
         }
@@ -1261,7 +1291,10 @@ window.addEventListener('DOMContentLoaded', async () => {
         if (data.success && data.loggedIn) {
             currentUser = data.user;
             showAppSection();
-            loadFeed();
+            
+            // Restore previous view from sessionStorage or default to feed
+            const savedView = sessionStorage.getItem('currentView') || 'feed';
+            switchView(savedView);
         } else {
             showAuthSection();
         }
@@ -1437,7 +1470,19 @@ if (navbarLogo && sidebar) {
 
 // Load search history from localStorage or initialize empty array
 // History persists across browser sessions using Web Storage API
-let searchHistory = JSON.parse(localStorage.getItem('searchHistory')) || [];
+// Load search history from localStorage or initialize empty array
+// History persists across browser sessions using Web Storage API
+function getSearchHistoryKey() {
+    return currentUser ? `searchHistory_${currentUser._id}` : 'searchHistory';
+}
+
+function getSearchHistory() {
+    return JSON.parse(localStorage.getItem(getSearchHistoryKey())) || [];
+}
+
+function saveSearchHistoryList(history) {
+    localStorage.setItem(getSearchHistoryKey(), JSON.stringify(history));
+}
 
 /**
  * Saves a search query to the search history
@@ -1447,16 +1492,17 @@ let searchHistory = JSON.parse(localStorage.getItem('searchHistory')) || [];
  * @param {string} type - The search type: 'users' or 'posts'
  */
 function saveSearchHistory(query, type) {
+    let history = getSearchHistory();
     // Remove any existing duplicate entries (same query and type)
-    searchHistory = searchHistory.filter(item => !(item.query === query && item.type === type));
-    searchHistory.unshift({ query, type, timestamp: Date.now() });
+    history = history.filter(item => !(item.query === query && item.type === type));
+    history.unshift({ query, type, timestamp: Date.now() });
 
     // Keep only last 5 searches
-    if (searchHistory.length > 5) {
-        searchHistory = searchHistory.slice(0, 5);
+    if (history.length > 5) {
+        history = history.slice(0, 5);
     }
 
-    localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
+    saveSearchHistoryList(history);
     displaySearchHistory();
 }
 
@@ -1466,9 +1512,10 @@ function saveSearchHistory(query, type) {
  * @param {number} index - The index of the history item to remove
  */
 function removeSearchHistory(index) {
+    let history = getSearchHistory();
     // Remove the item at the specified index
-    searchHistory.splice(index, 1);
-    localStorage.setItem('searchHistory', JSON.stringify(searchHistory));
+    history.splice(index, 1);
+    saveSearchHistoryList(history);
     displaySearchHistory();
 }
 
@@ -1480,13 +1527,14 @@ function removeSearchHistory(index) {
 function displaySearchHistory() {
     // Get reference to the history list container
     const historyList = document.getElementById('searchHistoryList');
+    const history = getSearchHistory();
 
-    if (searchHistory.length === 0) {
+    if (history.length === 0) {
         historyList.innerHTML = '<p style="color:#999;text-align:center;padding:20px;">No recent searches</p>';
         return;
     }
 
-    historyList.innerHTML = searchHistory.map((item, index) => `
+    historyList.innerHTML = history.map((item, index) => `
         <div class="history-item">
             <div class="history-item-content">
                 <span class="history-type">${item.type === 'users' ? 'User' : 'Post'}</span>

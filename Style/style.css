@@ -251,6 +251,36 @@ body {
     /* small helper text */
 }
 
+/* Password Visibility Toggle */
+.password-wrapper {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.password-wrapper input {
+    width: 100%;
+    padding-right: 60px; /* space for the show button */
+}
+
+.show-password-btn {
+    position: absolute;
+    right: 15px;
+    background: none;
+    border: none;
+    color: var(--accent);
+    cursor: pointer;
+    font-size: 0.9rem;
+    font-weight: 500;
+    padding: 0;
+    z-index: 10;
+}
+
+.show-password-btn:hover {
+    color: var(--primary);
+    text-decoration: underline;
+}
+
 /* Input with Icon (e.g., email, password) */
 .input-with-icon {
     position: relative;
