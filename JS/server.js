@@ -305,15 +305,18 @@ app.post(`/${STUDENTID}/users`, registerLimiter, async (req, res) => {
     }
 
     // Sanitize all user inputs to prevent XSS
-    const { name, email, password, bio } = sanitizeObject(req.body);
+    const { name, email, password } = sanitizeObject(req.body);
 
     if (!name || !email || !password) {
         return res.json({ success: false, error: 'Name, email, and password are required' });
     }
 
     // === SECURITY: PASSWORD STRENGTH VALIDATION ===
-    if (password.length < 8) {
-        return res.status(400).json({ success: false, error: 'Password must be at least 8 characters long' });
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecial = /[!@#$%^&*_=+-]/.test(password);
+    
+    if (password.length < 8 || !hasNumber || !hasSpecial) {
+        return res.status(400).json({ success: false, error: 'Password must be at least 8 characters long and include a number and special character' });
     }
 
     try {
@@ -329,7 +332,7 @@ app.post(`/${STUDENTID}/users`, registerLimiter, async (req, res) => {
             name: name,
             email: email,
             password: hashedPassword, // stored as bcrypt hash — never plaintext
-            bio: bio || '',
+            bio: '',
             createdAt: new Date()
         };
 

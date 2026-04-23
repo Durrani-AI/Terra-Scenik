@@ -372,14 +372,22 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     const name = document.getElementById('registerName').value;
     const email = document.getElementById('registerEmail').value;
     const password = document.getElementById('registerPassword').value;
-    const bio = document.getElementById('registerBio').value;
+
+    // Password validation logic
+    const hasNumber = /[0-9]/.test(password);
+    const hasSpecial = /[!@#$%^&*_=+-]/.test(password);
+    
+    if (password.length < 8 || !hasNumber || !hasSpecial) {
+        showError('registerError', 'Password must be at least 8 characters long and include a number and special character.');
+        return;
+    }
 
     try {
         const response = await fetch(`${API_BASE}/users`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             credentials: 'include',
-            body: JSON.stringify({ name, email, password, bio })
+            body: JSON.stringify({ name, email, password })
         });
 
         const data = await response.json();
