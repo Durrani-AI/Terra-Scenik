@@ -11,10 +11,10 @@ services:
         sync: false
       - key: SESSION_SECRET
         generateValue: true
-      - key: OPENAI_API_KEY
-        sync: false
       - key: UNSPLASH_KEY
         sync: false
+      - key: APP_URL
+        value: https://terrascenik.onrender.com
     disk:
       name: uploads
       mountPath: ./Uploads
