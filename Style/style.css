@@ -94,19 +94,17 @@ body {
 
 #authSection {
     min-height: 100vh;
-    /* full screen height */
     height: 100vh;
     align-items: center;
-    /* vertical center */
     justify-content: center;
-    /* horizontal center */
-    padding: 0;
+    padding: 20px 0;
+    overflow-y: auto;
+    overflow-x: hidden;
 }
 
 #authSection.active {
     display: flex;
     flex-direction: column;
-    /* show when active */
 }
 
 /* Sleep Mode Disclaimer Banner */
@@ -2063,14 +2061,21 @@ input[type="file"]::file-selector-button:hover {
 
 /* Tablet - 1024px and below */
 @media (max-width: 1024px) {
+    #authSection {
+        justify-content: flex-start;
+        padding-top: 40px;
+        padding-bottom: 40px;
+    }
+
     .auth-container {
         flex-direction: column; /* stack vertically */
-        padding: 60px 40px;
-        gap: 40px;
+        padding: 40px 20px;
+        gap: 30px;
+        margin: auto;
     }
 
     .auth-brand {
-        flex: 1;
+        flex: none;
         text-align: center; /* center on smaller screens */
     }
 
@@ -2079,8 +2084,9 @@ input[type="file"]::file-selector-button:hover {
     }
 
     .auth-box {
-        flex: 1;
-        max-width: 450px;
+        flex: none;
+        max-width: 100%;
+        width: 100%;
     }
 }
 
@@ -2102,41 +2108,50 @@ input[type="file"]::file-selector-button:hover {
     }
 
     .modal-content {
-        max-width: 90%;
+        max-width: 95%;
+        width: 95%;
+        margin: 10px auto;
     }
 
     .view-header {
         flex-direction: column;
         align-items: flex-start;
+        gap: 15px;
     }
 
     .navbar {
-        padding: 0 20px;
-        height: 65px;
+        padding: 0 15px;
+        height: auto;
+        min-height: 65px;
         grid-template-columns: auto 1fr auto;
+        gap: 10px;
     }
 
     .nav-links {
-        gap: 20px;
+        gap: 15px;
     }
 
     .nav-search {
-        max-width: 280px;
+        max-width: 100%;
+        width: 100%;
     }
 
     .main-content {
-        padding: 0 20px;
-        margin: 30px auto;
+        padding: 0 10px;
+        margin: 20px auto;
     }
 
     .view {
-        padding: 30px 20px;
+        padding: 20px 10px;
     }
 
     .search-box {
         flex-direction: column;
+        width: 100%;
     }
 
+    .search-box input,
+    .search-box select,
     .search-box button {
         width: 100%;
     }
@@ -2155,24 +2170,25 @@ input[type="file"]::file-selector-button:hover {
     }
 
     .confirmation-dialog {
-        width: 85%;
-        padding: 28px;
+        width: 90%;
+        padding: 20px;
     }
 
     .auth-container {
-        padding: 40px 20px;
+        padding: 20px 15px;
     }
 
     .auth-brand h1 {
-        font-size: 2.5rem;
+        font-size: 2.2rem;
     }
 
     .auth-box {
-        padding: 35px 30px;
+        padding: 25px 20px;
     }
 
     .post-image {
-        height: 300px;
+        height: auto;
+        max-height: 300px;
     }
 }
 
