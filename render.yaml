@@ -14,7 +14,7 @@ services:
       - key: UNSPLASH_KEY
         sync: false
       - key: APP_URL
-        value: https://terrascenik.onrender.com
+        value: https://terra-scenik.onrender.com
     disk:
       name: uploads
       mountPath: ./Uploads

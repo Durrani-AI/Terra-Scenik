@@ -320,9 +320,14 @@ app.post(`/${STUDENTID}/users`, registerLimiter, async (req, res) => {
     }
 
     try {
-        const existing = await usersCollection.findOne({ email: email }); // check for duplicate
-        if (existing) {
+        const existingEmail = await usersCollection.findOne({ email: email }); // check for duplicate email
+        if (existingEmail) {
             return res.json({ success: false, error: 'Email already registered' });
+        }
+
+        const existingName = await usersCollection.findOne({ name: name }); // check for duplicate name
+        if (existingName) {
+            return res.json({ success: false, error: 'Username already taken' });
         }
 
         // === SECURITY: HASH PASSWORD WITH BCRYPT ===
