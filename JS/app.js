@@ -1560,12 +1560,12 @@ function displaySearchHistory() {
     }
 
     historyList.innerHTML = history.map((item, index) => `
-        <div class="history-item">
+        <div class="history-item" onclick="performSearchFromHistory('${item.query.replace(/'/g, "\\'")}', '${item.type}')" style="cursor:pointer;">
             <div class="history-item-content">
                 <span class="history-type">${item.type === 'users' ? 'User' : 'Post'}</span>
                 <span class="history-query">${item.query}</span>
             </div>
-            <button class="history-remove" onclick="removeSearchHistory(${index})">×</button>
+            <button class="history-remove" onclick="event.stopPropagation(); removeSearchHistory(${index})">×</button>
         </div>
     `).join('');
 }
