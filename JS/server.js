@@ -905,7 +905,7 @@ app.delete(`/${STUDENTID}/contents/:postId/like`, requireLogin, async (req, res)
     }
 });
 
-// GET /M01049109/feed - Get posts from followed users
+// GET /M01049109/feed - Get posts from followed users + current user
 app.get(`/${STUDENTID}/feed`, requireLogin, async (req, res) => {
     if (!postsCollection || !followsCollection) {
         return res.json({ success: false, error: 'Database not connected' });
@@ -918,23 +918,15 @@ app.get(`/${STUDENTID}/feed`, requireLogin, async (req, res) => {
         }).toArray();
 
         const followingIds = following.map(f => f.followingId);
+        const feedUserIds = [...new Set([req.session.userId, ...followingIds])];
         console.log(`👥 User is following ${followingIds.length} users:`, followingIds);
 
-        if (followingIds.length === 0) {
-            return res.json({
-                success: true,
-                count: 0,
-                posts: [],
-                message: 'You are not following anyone yet. Follow users to see their posts!'
-            });
-        }
-
-        // Get posts only from followed users
+        // Get posts from followed users and the current user
         const feedPosts = await postsCollection.find({
-            userId: { $in: followingIds }
+            userId: { $in: feedUserIds }
         }).sort({ createdAt: -1 }).toArray();
         
-        console.log(`📝 Found ${feedPosts.length} posts from followed users`);
+        console.log(`📝 Found ${feedPosts.length} posts from followed users + current user`);
 
         // Get profile pictures for all users in feed
         const posts = await Promise.all(
@@ -971,12 +963,13 @@ app.get(`/${STUDENTID}/feed`, requireLogin, async (req, res) => {
             })
         );
 
-        console.log(`✅ Feed: Returning ${posts.length} posts from ${followingIds.length} followed users`);
+        console.log(`✅ Feed: Returning ${posts.length} posts from ${followingIds.length} followed users + current user`);
 
         return res.json({
             success: true,
             count: posts.length,
-            posts: posts
+            posts: posts,
+            message: posts.length === 0 ? 'No posts yet. Share your first post or follow users to see posts here!' : undefined
         });
 
     } catch (err) {

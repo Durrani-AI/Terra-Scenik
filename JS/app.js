@@ -479,13 +479,13 @@ document.getElementById('logoutBtn').addEventListener('click', async () => {
 // LOAD FEED
 // ============================================
 // Fetches and displays the personalized feed for the logged-in user
-// Feed contains posts ONLY from users that the current user follows
+// Feed contains posts from followed users and the current user's own posts
 // Uses AJAX to call GET /M01049109/feed endpoint
 // ============================================
 
 /**
  * Loads and displays the personalized feed for the current user
- * Fetches posts from followed users via AJAX
+ * Fetches posts from followed users and your own posts via AJAX
  * Renders posts with images, likes, and user information
  */
 async function loadFeed() {
