@@ -7,10 +7,16 @@
     <meta name="description" content="Terra Scenik - A nature photo sharing community. Share, discover, and connect through beautiful nature photography.">
     <title>Terra Scenik - Share Your Nature Photos</title>
     <link rel="icon" type="image/svg+xml" href="/Style/icons/favicon.svg">
+    <script src="/JS/theme-init.js"></script>
     <link rel="stylesheet" href="/Style/style.css">
 </head>
 
-<body>
+<body class="auth-mode">
+    <button id="themeToggle" class="theme-toggle" type="button" data-theme-toggle aria-label="Switch color theme" aria-pressed="true">
+        <span class="theme-toggle-label">Theme</span>
+        <span class="theme-toggle-value" data-theme-label>Dark</span>
+    </button>
+
     <!-- ============================================ -->
     <!-- AUTHENTICATION SECTION (Login/Register) -->
     <!-- ============================================ -->

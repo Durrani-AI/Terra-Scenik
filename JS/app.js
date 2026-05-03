@@ -4,6 +4,79 @@
 const STUDENT_ID = 'M01049109'; // used as prefix for all API endpoints
 const API_BASE = `/${STUDENT_ID}`; // base URL for API calls
 let currentUser = null; // stores logged-in user data (id, name, email, bio, profilePicture)
+const THEME_STORAGE_KEY = 'terra-theme';
+const themeMediaQuery = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-color-scheme: dark)')
+    : null;
+
+function getStoredTheme() {
+    try {
+        const storedTheme = localStorage.getItem(THEME_STORAGE_KEY);
+        return storedTheme === 'dark' || storedTheme === 'light' ? storedTheme : null;
+    } catch (err) {
+        return null;
+    }
+}
+
+function getPreferredTheme() {
+    return getStoredTheme() || (themeMediaQuery && themeMediaQuery.matches ? 'dark' : 'light');
+}
+
+function updateThemeToggleButtons(theme) {
+    document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+        const themeLabel = button.querySelector('[data-theme-label]');
+        if (themeLabel) {
+            themeLabel.textContent = theme === 'dark' ? 'Dark' : 'Light';
+        }
+
+        const nextTheme = theme === 'dark' ? 'light' : 'dark';
+        button.setAttribute('aria-label', `Switch to ${nextTheme} mode`);
+        button.setAttribute('title', `Switch to ${nextTheme} mode`);
+        button.setAttribute('aria-pressed', String(theme === 'dark'));
+    });
+}
+
+function applyTheme(theme) {
+    const activeTheme = theme === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = activeTheme;
+    document.documentElement.style.colorScheme = activeTheme;
+    updateThemeToggleButtons(activeTheme);
+}
+
+function setTheme(theme) {
+    applyTheme(theme);
+
+    try {
+        localStorage.setItem(THEME_STORAGE_KEY, theme);
+    } catch (err) {
+        // Ignore storage errors; the toggle still works for the current session.
+    }
+}
+
+function toggleTheme() {
+    const nextTheme = document.documentElement.dataset.theme === 'dark' ? 'light' : 'dark';
+    setTheme(nextTheme);
+}
+
+function initThemeControls() {
+    applyTheme(getPreferredTheme());
+
+    document.querySelectorAll('[data-theme-toggle]').forEach((button) => {
+        button.addEventListener('click', toggleTheme);
+    });
+
+    if (themeMediaQuery) {
+        themeMediaQuery.addEventListener('change', (event) => {
+            if (getStoredTheme()) {
+                return;
+            }
+
+            applyTheme(event.matches ? 'dark' : 'light');
+        });
+    }
+}
+
+initThemeControls();
 
 // === UTILITY FUNCTIONS ===
 
@@ -206,6 +279,8 @@ function showConfirmation(title, message) {
 function showAuthSection() {
     document.getElementById('authSection').classList.add('active');
     document.getElementById('appSection').classList.remove('active');
+    document.body.classList.add('auth-mode');
+    document.body.classList.remove('app-mode');
     // Hide sidebar on auth pages
     const sidebar = document.querySelector('.sidebar');
     if (sidebar) {
@@ -229,6 +304,8 @@ function showAppSection() {
     // Hide auth section and show main app
     document.getElementById('authSection').classList.remove('active');
     document.getElementById('appSection').classList.add('active');
+    document.body.classList.add('app-mode');
+    document.body.classList.remove('auth-mode');
     // Don't automatically show sidebar - only on hover for cleaner UI
 
     // Update navbar profile picture with current user's image
