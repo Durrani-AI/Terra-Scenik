@@ -56,6 +56,90 @@ function sanitizeObject(obj) {
     return sanitized;
 }
 
+const allowedImageTypes = new Set(['image/jpeg', 'image/png', 'image/gif', 'image/webp']);
+const allowedExternalImageHosts = new Set([
+    'images.unsplash.com',
+    'plus.unsplash.com',
+    'source.unsplash.com'
+]);
+
+function decodeHtmlEntities(str) {
+    if (typeof str !== 'string') return '';
+
+    return str
+        .replace(/&#x2F;/gi, '/')
+        .replace(/&#x27;/gi, "'")
+        .replace(/&quot;/gi, '"')
+        .replace(/&gt;/gi, '>')
+        .replace(/&lt;/gi, '<')
+        .replace(/&amp;/gi, '&');
+}
+
+function isAllowedExternalImageUrl(imageUrl) {
+    try {
+        const parsedUrl = new URL(imageUrl);
+        return ['http:', 'https:'].includes(parsedUrl.protocol) && allowedExternalImageHosts.has(parsedUrl.hostname);
+    } catch (err) {
+        return false;
+    }
+}
+
+function normalizeImageUrl(imageUrl) {
+    if (typeof imageUrl !== 'string') {
+        return '';
+    }
+
+    const decodedUrl = decodeHtmlEntities(imageUrl).trim();
+    if (!decodedUrl) {
+        return '';
+    }
+
+    if (/^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(decodedUrl)) {
+        return decodedUrl;
+    }
+
+    if (/^https?:\/\//i.test(decodedUrl)) {
+        return isAllowedExternalImageUrl(decodedUrl) ? decodedUrl : '';
+    }
+
+    const slashNormalizedUrl = decodedUrl.replace(/\\/g, '/');
+
+    if (slashNormalizedUrl.startsWith(`/${STUDENTID}/`)) {
+        return slashNormalizedUrl;
+    }
+
+    if (slashNormalizedUrl.startsWith(`${STUDENTID}/`)) {
+        return `/${slashNormalizedUrl}`;
+    }
+
+    const fileName = slashNormalizedUrl.split('/').pop();
+    if (fileName && /\.(jpe?g|png|gif|webp)$/i.test(fileName)) {
+        return `/${STUDENTID}/${fileName}`;
+    }
+
+    return '';
+}
+
+function getStoredMediaBuffer(mediaData) {
+    if (!mediaData) {
+        return null;
+    }
+
+    if (Buffer.isBuffer(mediaData)) {
+        return mediaData;
+    }
+
+    if (mediaData instanceof Uint8Array) {
+        return Buffer.from(mediaData);
+    }
+
+    if (mediaData.buffer) {
+        return Buffer.from(mediaData.buffer);
+    }
+
+    return null;
+}
+
 // === SECURITY FEATURE 3: RATE LIMITING ===
 // Prevents brute-force attacks and API abuse
 
@@ -115,19 +199,27 @@ const storage = multer.diskStorage({
     }
 });
 
-const upload = multer({
-    storage: storage,
+const uploadOptions = {
     limits: { fileSize: 15 * 1024 * 1024 }, // 15MB max file size
     fileFilter: (req, file, cb) => {
         // === SECURITY: FILE TYPE VALIDATION ===
         // Only allow image file types to prevent malicious file uploads
-        const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-        if (allowedTypes.includes(file.mimetype)) {
+        if (allowedImageTypes.has(file.mimetype)) {
             cb(null, true);
         } else {
             cb(new Error('Only image files (JPEG, PNG, GIF, WebP) are allowed'));
         }
     }
+};
+
+const postUpload = multer({
+    storage: multer.memoryStorage(),
+    ...uploadOptions
+});
+
+const profilePictureUpload = multer({
+    storage: storage,
+    ...uploadOptions
 });
 
 // === MIDDLEWARE ===
@@ -141,7 +233,7 @@ app.use(helmet({
             scriptSrc: ["'self'"],
             scriptSrcAttr: ["'unsafe-inline'"],
             styleSrc: ["'self'", "'unsafe-inline'"],
-            imgSrc: ["'self'", "https://images.unsplash.com", "data:", "blob:"],
+            imgSrc: ["'self'", "https://images.unsplash.com", "https://plus.unsplash.com", "https://source.unsplash.com", "data:", "blob:"],
             connectSrc: ["'self'"],
             fontSrc: ["'self'"],
             objectSrc: ["'none'"],
@@ -231,6 +323,7 @@ let usersCollection; // users collection
 let postsCollection; // posts collection
 let followsCollection; // follow relationships
 let likesCollection; // likes on posts
+let mediaCollection; // durable uploaded post images
 
 // connects to MongoDB Atlas and initializes collections
 async function connectDB() {
@@ -245,6 +338,7 @@ async function connectDB() {
         postsCollection = db.collection('posts');
         followsCollection = db.collection('follows');
         likesCollection = db.collection('likes');
+        mediaCollection = db.collection('media');
 
         // === DEDUP: Clean duplicate follows before creating unique index ===
         const dupFollows = await followsCollection.aggregate([
@@ -271,6 +365,7 @@ async function connectDB() {
         await usersCollection.createIndex({ name: 1 });
         await postsCollection.createIndex({ userId: 1, createdAt: -1 });
         await postsCollection.createIndex({ userEmail: 1 });
+        await mediaCollection.createIndex({ uploadedBy: 1, createdAt: -1 });
         await followsCollection.createIndex({ followerId: 1 });
         await followsCollection.createIndex({ followingId: 1 });
         await followsCollection.createIndex({ followerId: 1, followingId: 1 }, { unique: true });
@@ -367,25 +462,74 @@ app.post(`/${STUDENTID}/users`, registerLimiter, async (req, res) => {
 });
 
 // POST /M01049109/upload - Upload image file
-app.post(`/${STUDENTID}/upload`, requireLogin, upload.single('image'), (req, res) => {
+app.post(`/${STUDENTID}/upload`, requireLogin, postUpload.single('image'), async (req, res) => {
     try {
-        if (!req.file) {
-            return res.status(400).json({
-                success: false,
-                error: 'No file uploaded'
-            });
+        if (!mediaCollection) {
+            return res.status(500).json({ success: false, error: 'Media storage not available' });
         }
 
-        // Construct the URL path to the uploaded file
-        const fileUrl = `/${STUDENTID}/${req.file.filename}`;
+        let fileBuffer = null;
+        let originalName = null;
+        let mimetype = null;
+
+        if (req.file) {
+            fileBuffer = req.file.buffer;
+            originalName = req.file.originalname;
+            mimetype = req.file.mimetype;
+        } else {
+            const remoteUrl = normalizeImageUrl(req.body?.remoteUrl);
+
+            if (!remoteUrl || !isAllowedExternalImageUrl(remoteUrl)) {
+                return res.status(400).json({ success: false, error: 'No valid image source provided' });
+            }
+
+            const remoteResponse = await fetch(remoteUrl);
+            if (!remoteResponse.ok) {
+                return res.status(400).json({ success: false, error: 'Failed to fetch remote image' });
+            }
+
+            mimetype = (remoteResponse.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
+            if (!allowedImageTypes.has(mimetype)) {
+                return res.status(400).json({ success: false, error: 'Only JPEG, PNG, GIF, and WebP images are supported' });
+            }
+
+            fileBuffer = Buffer.from(await remoteResponse.arrayBuffer());
+            if (fileBuffer.length > 15 * 1024 * 1024) {
+                return res.status(400).json({ success: false, error: 'Image file is too large. Please select an image smaller than 15MB.' });
+            }
+
+            const fileExtension = mimetype === 'image/png'
+                ? '.png'
+                : mimetype === 'image/gif'
+                    ? '.gif'
+                    : mimetype === 'image/webp'
+                        ? '.webp'
+                        : '.jpg';
+            originalName = `remote-${Date.now()}${fileExtension}`;
+        }
+
+        if (!fileBuffer || !mimetype) {
+            return res.status(400).json({ success: false, error: 'No file uploaded' });
+        }
+
+        const result = await mediaCollection.insertOne({
+            originalName: originalName,
+            mimetype: mimetype,
+            size: fileBuffer.length,
+            data: fileBuffer,
+            uploadedBy: req.session.userId,
+            createdAt: new Date()
+        });
+
+        const fileUrl = `/${STUDENTID}/media/${result.insertedId.toString()}`;
 
         return res.json({
             success: true,
             message: 'File uploaded successfully',
-            filename: req.file.filename,
+            filename: result.insertedId.toString(),
             path: fileUrl,
-            size: req.file.size,
-            mimetype: req.file.mimetype
+            size: fileBuffer.length,
+            mimetype: mimetype
         });
     } catch (error) {
         console.error('Upload error:', error);
@@ -393,6 +537,42 @@ app.post(`/${STUDENTID}/upload`, requireLogin, upload.single('image'), (req, res
             success: false,
             error: 'Error uploading file'
         });
+    }
+});
+
+// GET /M01049109/media/:mediaId - Serve durable uploaded media from MongoDB
+app.get(`/${STUDENTID}/media/:mediaId`, async (req, res) => {
+    if (!mediaCollection) {
+        return res.status(500).json({ success: false, error: 'Media storage not available' });
+    }
+
+    try {
+        const { mediaId } = req.params;
+
+        if (!ObjectId.isValid(mediaId)) {
+            return res.status(404).json({ success: false, error: 'Image not found' });
+        }
+
+        const media = await mediaCollection.findOne(
+            { _id: new ObjectId(mediaId) },
+            { projection: { data: 1, mimetype: 1 } }
+        );
+
+        if (!media) {
+            return res.status(404).json({ success: false, error: 'Image not found' });
+        }
+
+        const mediaBuffer = getStoredMediaBuffer(media.data);
+        if (!mediaBuffer) {
+            return res.status(500).json({ success: false, error: 'Stored image is corrupted' });
+        }
+
+        res.set('Content-Type', media.mimetype || 'application/octet-stream');
+        res.set('Cache-Control', 'public, max-age=31536000, immutable');
+        return res.send(mediaBuffer);
+    } catch (error) {
+        console.error('Serve media error:', error);
+        return res.status(500).json({ success: false, error: 'Error loading image' });
     }
 });
 
@@ -580,14 +760,22 @@ app.post(`/${STUDENTID}/contents`, requireLogin, async (req, res) => {
         return res.json({ success: false, error: 'Database not connected' });
     }
 
-    // Sanitize user-provided text fields to prevent stored XSS
-    const { caption, location, image_url } = sanitizeObject(req.body);
+    // Sanitize text fields and validate image separately
+    const { caption, location } = sanitizeObject(req.body);
+    const image_url = normalizeImageUrl(req.body.image_url || '');
 
     // Validation
     if (!caption || !location) {
         return res.status(400).json({
             success: false,
             error: 'Caption and location are required'
+        });
+    }
+
+    if (req.body.image_url && !image_url) {
+        return res.status(400).json({
+            success: false,
+            error: 'Invalid image provided. Please upload the image again.'
         });
     }
 
@@ -610,7 +798,8 @@ app.post(`/${STUDENTID}/contents`, requireLogin, async (req, res) => {
             message: 'Post created successfully',
             post: {
                 id: result.insertedId,
-                ...newPost
+                ...newPost,
+                image_url: normalizeImageUrl(newPost.image_url)
             }
         });
 
@@ -660,7 +849,7 @@ app.get(`/${STUDENTID}/contents`, async (req, res) => {
                     userEmail: post.userEmail,
                     caption: post.caption,
                     location: post.location,
-                    image_url: post.image_url,
+                    image_url: normalizeImageUrl(post.image_url),
                     profilePicture: user?.profilePicture || null,
                     createdAt: post.createdAt
                 };
@@ -950,7 +1139,7 @@ app.get(`/${STUDENTID}/feed`, requireLogin, async (req, res) => {
                     userEmail: post.userEmail,
                     caption: post.caption,
                     location: post.location,
-                    image_url: post.image_url,
+                    image_url: normalizeImageUrl(post.image_url),
                     profilePicture: user?.profilePicture || null,
                     likeCount: likeCount,
                     isLiked: !!userLiked,
@@ -1123,7 +1312,7 @@ app.put(`/${STUDENTID}/users/profile`, requireLogin, async (req, res) => {
 
 // PUT /M01049109/users/profile-picture - Update profile picture (file upload)
 // SECURITY: Uses multer file upload instead of base64 to prevent DB bloat and DoS
-app.put(`/${STUDENTID}/users/profile-picture`, requireLogin, upload.single('profilePicture'), async (req, res) => {
+app.put(`/${STUDENTID}/users/profile-picture`, requireLogin, profilePictureUpload.single('profilePicture'), async (req, res) => {
     if (!usersCollection) {
         return res.json({ success: false, error: 'Database not connected' });
     }
@@ -1199,7 +1388,7 @@ app.get(`/${STUDENTID}/users/:email/profile`, requireLogin, async (req, res) => 
             userEmail: post.userEmail,
             caption: post.caption,
             location: post.location,
-            image_url: post.image_url,
+            image_url: normalizeImageUrl(post.image_url),
             profilePicture: user.profilePicture || null,
             createdAt: post.createdAt
         }));
@@ -1241,8 +1430,9 @@ app.put(`/${STUDENTID}/contents/:postId`, requireLogin, async (req, res) => {
     }
 
     const { postId } = req.params;
-    // Sanitize updated post content
-    const { caption, location, image_url } = sanitizeObject(req.body);
+    // Sanitize updated post content and validate image separately
+    const { caption, location } = sanitizeObject(req.body);
+    const image_url = normalizeImageUrl(req.body.image_url || '');
 
     // Validation
     if (!caption || !location) {
@@ -1279,7 +1469,13 @@ app.put(`/${STUDENTID}/contents/:postId`, requireLogin, async (req, res) => {
         };
 
         // Only update image if provided
-        if (image_url !== undefined) {
+        if (req.body.image_url !== undefined) {
+            if (req.body.image_url && !image_url) {
+                return res.status(400).json({
+                    success: false,
+                    error: 'Invalid image provided. Please upload the image again.'
+                });
+            }
             updateData.image_url = image_url;
         }
 
@@ -1372,7 +1568,7 @@ app.get(`/${STUDENTID}/contents/my`, requireLogin, async (req, res) => {
             userEmail: post.userEmail,
             caption: post.caption,
             location: post.location,
-            image_url: post.image_url,
+            image_url: normalizeImageUrl(post.image_url),
             createdAt: post.createdAt
         }));
 

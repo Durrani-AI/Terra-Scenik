@@ -638,11 +638,7 @@ function renderPost(post, isSearchResult = false) {
                     <p>${formatDate(post.createdAt)}</p>
                 </div>
             </div>
-            ${post.image_url ? `
-                <div class="post-image-container" ${imageClickHandler}>
-                    <img src="${post.image_url}" alt="Nature photo" class="post-image show">
-                </div>
-            ` : ''}
+            ${renderPostImageMarkup(post.image_url, imageClickHandler)}
             <div class="post-content">
                 <div class="post-info-row">
                     <div class="post-location">
@@ -658,6 +654,34 @@ function renderPost(post, isSearchResult = false) {
                 </div>
                 <p class="post-caption">${post.caption}</p>
             </div>
+        </div>
+    `;
+}
+
+function renderPostImageMarkup(imageUrl, imageClickHandler = '') {
+    if (!imageUrl) {
+        return '';
+    }
+
+    return `
+        <div class="post-image-container"${imageClickHandler ? ` ${imageClickHandler}` : ''}>
+            <img src="${imageUrl}" alt="Nature photo" class="post-image show" loading="lazy" onerror="handlePostImageError(this)">
+        </div>
+    `;
+}
+
+function handlePostImageError(img) {
+    const container = img.closest('.post-image-container');
+    if (!container || container.dataset.imageFallback === 'true') {
+        return;
+    }
+
+    container.dataset.imageFallback = 'true';
+    container.removeAttribute('onclick');
+    container.innerHTML = `
+        <div class="post-image-fallback">
+            <strong>Image unavailable</strong>
+            <span>This post image could not be loaded.</span>
         </div>
     `;
 }
@@ -783,22 +807,13 @@ document.getElementById('createPostForm').addEventListener('submit', async (e) =
 
     // Check if Unsplash image is selected
     if (selectedUnsplashImage) {
-        // Fetch the Unsplash image, convert to blob, then upload to server
+        // Let the server fetch and persist the Unsplash image to avoid browser CORS issues
         try {
-            const response = await fetch(selectedUnsplashImage);
-            const blob = await response.blob();
-
-            // Convert blob to file for upload
-            const unsplashFile = new File([blob], `unsplash-${Date.now()}.jpg`, { type: blob.type });
-
-            // Upload to server
-            const formData = new FormData();
-            formData.append('image', unsplashFile);
-
             const uploadResponse = await fetch(`${API_BASE}/upload`, {
                 method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
                 credentials: 'include',
-                body: formData
+                body: JSON.stringify({ remoteUrl: selectedUnsplashImage })
             });
 
             const uploadData = await uploadResponse.json();
@@ -1978,11 +1993,7 @@ function renderMyPost(post) {
                     <button class="btn-delete-post" onclick="deletePost('${post.id}')">Delete</button>
                 </div>
             </div>
-            ${post.image_url ? `
-                <div class="post-image-container">
-                    <img src="${post.image_url}" alt="Nature photo" class="post-image show">
-                </div>
-            ` : ''}
+            ${renderPostImageMarkup(post.image_url)}
             <div class="post-content">
                 <div class="post-info-row">
                     <div class="post-location">
