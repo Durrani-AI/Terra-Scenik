@@ -1313,26 +1313,46 @@ body {
     display: block; /* show when image loaded */
 }
 
-.post-image-fallback {
-    min-height: 220px;
+.post-image-status {
     display: flex;
-    flex-direction: column;
     align-items: center;
-    justify-content: center;
-    gap: 8px;
-    padding: 24px;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin: 0 0 12px;
+    padding: 12px 14px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
     background: var(--bg-tertiary);
     color: var(--text-secondary);
-    text-align: center;
 }
 
-.post-image-fallback strong {
+.post-image-status strong {
     color: var(--text-primary);
     font-size: 0.95rem;
 }
 
-.post-image-fallback span {
+.post-image-status span {
     font-size: 0.85rem;
+}
+
+.post-image-status-owner {
+    justify-content: space-between;
+}
+
+.btn-replace-image {
+    background: transparent;
+    color: var(--accent);
+    border: 1px solid var(--accent);
+    border-radius: 999px;
+    padding: 6px 12px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: background 0.3s ease, color 0.3s ease, opacity 0.3s ease;
+}
+
+.btn-replace-image:hover {
+    background: var(--accent);
+    color: #111;
 }
 
 .post-content {

@@ -638,7 +638,7 @@ function renderPost(post, isSearchResult = false) {
                     <p>${formatDate(post.createdAt)}</p>
                 </div>
             </div>
-            ${renderPostImageMarkup(post.image_url, imageClickHandler)}
+            ${renderPostImageMarkup(post.image_url, imageClickHandler, 'feed')}
             <div class="post-content">
                 <div class="post-info-row">
                     <div class="post-location">
@@ -658,13 +658,13 @@ function renderPost(post, isSearchResult = false) {
     `;
 }
 
-function renderPostImageMarkup(imageUrl, imageClickHandler = '') {
+function renderPostImageMarkup(imageUrl, imageClickHandler = '', fallbackMode = 'feed') {
     if (!imageUrl) {
         return '';
     }
 
     return `
-        <div class="post-image-container"${imageClickHandler ? ` ${imageClickHandler}` : ''}>
+        <div class="post-image-container" data-fallback-mode="${fallbackMode}"${imageClickHandler ? ` ${imageClickHandler}` : ''}>
             <img src="${imageUrl}" alt="Nature photo" class="post-image show" loading="lazy" onerror="handlePostImageError(this)">
         </div>
     `;
@@ -678,12 +678,39 @@ function handlePostImageError(img) {
 
     container.dataset.imageFallback = 'true';
     container.removeAttribute('onclick');
-    container.innerHTML = `
-        <div class="post-image-fallback">
-            <strong>Image unavailable</strong>
-            <span>This post image could not be loaded.</span>
-        </div>
-    `;
+    const postCard = container.closest('.post-card');
+    const postContent = postCard?.querySelector('.post-content');
+    const fallbackMode = container.dataset.fallbackMode || 'feed';
+
+    container.remove();
+
+    if (!postContent || postCard?.querySelector('.post-image-status')) {
+        return;
+    }
+
+    const fallbackMarkup = fallbackMode === 'owner'
+        ? `
+            <div class="post-image-status post-image-status-owner">
+                <strong>Photo unavailable.</strong>
+                <span>This older image can no longer be loaded.</span>
+                <button type="button" class="btn-replace-image" onclick="openPostEditFromFallback(this)">Replace image</button>
+            </div>
+        `
+        : `
+            <div class="post-image-status">
+                <strong>Photo unavailable.</strong>
+                <span>This older image is no longer available.</span>
+            </div>
+        `;
+
+    postContent.insertAdjacentHTML('afterbegin', fallbackMarkup);
+}
+
+function openPostEditFromFallback(button) {
+    const editButton = button.closest('.post-card')?.querySelector('.btn-edit-post');
+    if (editButton) {
+        editButton.click();
+    }
 }
 
 // ============================================
@@ -1993,7 +2020,7 @@ function renderMyPost(post) {
                     <button class="btn-delete-post" onclick="deletePost('${post.id}')">Delete</button>
                 </div>
             </div>
-            ${renderPostImageMarkup(post.image_url)}
+            ${renderPostImageMarkup(post.image_url, '', 'owner')}
             <div class="post-content">
                 <div class="post-info-row">
                     <div class="post-location">
